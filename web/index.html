@@ -41,12 +41,20 @@
             <option value="12">12 months</option>
           </select>
         </div>
-        <button id="sync-btn" class="btn-sync" onclick="startSync()">
+        <button id="sync-btn" class="btn-sync" onclick="startSync()" title="Sync recent data for the selected range">
           <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/>
             <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"/>
           </svg>
           Sync
+        </button>
+        <button id="full-sync-btn" class="btn-full-sync" onclick="startFullSync()" title="Download full history from Garmin (slow, run once)">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Full History
         </button>
       </div>
     </div>
@@ -56,6 +64,7 @@
   <div id="sync-bar" class="sync-bar hidden">
     <div id="sync-fill" class="sync-fill" style="width:0%"></div>
     <span id="sync-label" class="sync-label">Syncing...</span>
+    <span id="sync-db-range" class="sync-db-range"></span>
   </div>
 
   <!-- Main Content -->

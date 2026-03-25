@@ -52,6 +52,8 @@ type VO2MaxPoint struct {
 
 // DashboardResponse is the full response to the frontend
 type DashboardResponse struct {
-	Metrics  []DailyMetrics `json:"metrics"`
-	LastSync string         `json:"lastSync"`
+	Metrics      []DailyMetrics `json:"metrics"`
+	LastSync     string         `json:"lastSync"`
+	EarliestInDB string         `json:"earliestInDB"`
+	LatestInDB   string         `json:"latestInDB"`
 }

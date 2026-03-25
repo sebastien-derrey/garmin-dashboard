@@ -28,6 +28,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   } else {
     showUserBadge(status.displayName);
     loadData();
+    // If a startup auto-sync is already running, attach to it immediately
+    const syncStatus = await fetch('/api/sync/status').then(r => r.json());
+    if (syncStatus.running) {
+      setSyncButtonsDisabled(true);
+      document.getElementById('sync-bar').classList.remove('hidden');
+      if (!syncInterval) syncInterval = setInterval(pollSync, 800);
+    }
   }
 });
 
@@ -106,6 +113,7 @@ async function loadData() {
     const body  = await dataRes.json();
     const stats = statsRes.ok ? await statsRes.json() : null;
     allMetrics  = body.metrics || [];
+    updateDBRangeBadge(body.earliestInDB, body.latestInDB);
 
     if (allMetrics.length === 0) {
       document.getElementById('empty-state').classList.remove('hidden');
@@ -171,26 +179,43 @@ function showDiagnostics(stats) {
 }
 
 // ── Sync ─────────────────────────────────────────────────────────────────
-async function startSync() {
-  const btn = document.getElementById('sync-btn');
-  btn.disabled = true;
+function setSyncButtonsDisabled(disabled) {
+  document.getElementById('sync-btn').disabled = disabled;
+  document.getElementById('full-sync-btn').disabled = disabled;
+}
 
+async function startSync() {
+  setSyncButtonsDisabled(true);
   const res = await fetch(`/api/sync?months=${currentMonths}`, { method: 'POST' });
   if (!res.ok) {
-    const msg = await res.text();
-    alert(msg);
-    btn.disabled = false;
+    alert(await res.text());
+    setSyncButtonsDisabled(false);
     return;
   }
-
   document.getElementById('sync-bar').classList.remove('hidden');
-  syncInterval = setInterval(pollSync, 800);
+  if (!syncInterval) syncInterval = setInterval(pollSync, 800);
+}
+
+async function startFullSync() {
+  if (!confirm('This will download your full Garmin history (could take several minutes). Continue?')) return;
+  setSyncButtonsDisabled(true);
+  const res = await fetch('/api/sync/all', { method: 'POST' });
+  if (!res.ok) {
+    alert(await res.text());
+    setSyncButtonsDisabled(false);
+    return;
+  }
+  const data = await res.json();
+  document.getElementById('sync-bar').classList.remove('hidden');
+  document.getElementById('sync-label').textContent = `Full history from ${data.from}…`;
+  if (!syncInterval) syncInterval = setInterval(pollSync, 800);
 }
 
 async function pollSync() {
   const state = await fetch('/api/sync/status').then(r => r.json());
   const fill  = document.getElementById('sync-fill');
   const label = document.getElementById('sync-label');
+  const range = document.getElementById('sync-db-range');
 
   fill.style.width  = (state.percent || 0) + '%';
   label.textContent = state.message || 'Syncing…';
@@ -198,17 +223,30 @@ async function pollSync() {
   if (!state.running) {
     clearInterval(syncInterval);
     syncInterval = null;
-    document.getElementById('sync-btn').disabled = false;
+    setSyncButtonsDisabled(false);
 
     if (state.error) {
       label.textContent = '✗ ' + state.error;
-      setTimeout(() => document.getElementById('sync-bar').classList.add('hidden'), 5000);
+      setTimeout(() => document.getElementById('sync-bar').classList.add('hidden'), 6000);
     } else {
       fill.style.width  = '100%';
-      label.textContent = '✓ Sync complete';
-      setTimeout(() => document.getElementById('sync-bar').classList.add('hidden'), 2000);
-      loadData();
+      label.textContent = '✓ Complete';
+      // Reload data then update the DB range shown in the bar
+      await loadData();
+      setTimeout(() => document.getElementById('sync-bar').classList.add('hidden'), 2500);
     }
+  }
+}
+
+// Update the DB coverage badge in the sync bar
+function updateDBRangeBadge(earliest, latest) {
+  const el = document.getElementById('sync-db-range');
+  if (!el) return;
+  if (earliest && latest) {
+    el.textContent = `DB: ${earliest} → ${latest}`;
+    el.style.display = 'inline';
+  } else {
+    el.style.display = 'none';
   }
 }
 

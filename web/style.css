@@ -108,26 +108,57 @@ body {
 .btn-sync:hover { background: #2563eb; }
 .btn-sync:active { transform: scale(0.97); }
 .btn-sync:disabled { background: var(--muted); cursor: not-allowed; }
+
+/* Full History button — secondary style */
+.btn-full-sync {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, transform 0.1s;
+}
+.btn-full-sync:hover { color: var(--text); border-color: var(--blue); }
+.btn-full-sync:active { transform: scale(0.97); }
+.btn-full-sync:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-icon { width: 14px; height: 14px; }
 
 /* ── Sync Progress Bar ───────────────────────────────────────────────── */
 .sync-bar {
   position: relative;
-  height: 3px;
+  height: 28px;
   background: var(--surface2);
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 10px;
 }
 .sync-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--blue), var(--teal));
-  transition: width 0.3s ease;
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  background: linear-gradient(90deg, rgba(59,130,246,0.25), rgba(16,185,129,0.25));
+  transition: width 0.4s ease;
+  pointer-events: none;
 }
 .sync-label {
-  position: absolute;
-  top: 6px;
-  right: 16px;
+  position: relative;
+  font-size: 11px;
+  color: var(--text);
+  z-index: 1;
+  flex: 1;
+}
+.sync-db-range {
+  position: relative;
   font-size: 11px;
   color: var(--muted);
+  z-index: 1;
+  display: none;
 }
 .sync-bar.hidden { display: none; }
 

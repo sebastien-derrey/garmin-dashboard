@@ -182,6 +182,38 @@ func scanMetrics(rows *sql.Rows) ([]garmin.DailyMetrics, error) {
 	return out, rows.Err()
 }
 
+// LatestSyncedDate returns the most recent date present in hrv_data or training_status
+func (d *DB) LatestSyncedDate() string {
+	var t sql.NullString
+	d.db.QueryRow(`
+		SELECT MAX(d) FROM (
+			SELECT MAX(date) d FROM hrv_data
+			UNION ALL
+			SELECT MAX(date) d FROM training_status
+		)
+	`).Scan(&t)
+	if t.Valid {
+		return t.String
+	}
+	return ""
+}
+
+// EarliestSyncedDate returns the oldest date present across all tables
+func (d *DB) EarliestSyncedDate() string {
+	var t sql.NullString
+	d.db.QueryRow(`
+		SELECT MIN(d) FROM (
+			SELECT MIN(date) d FROM hrv_data
+			UNION ALL
+			SELECT MIN(date) d FROM training_status
+		)
+	`).Scan(&t)
+	if t.Valid {
+		return t.String
+	}
+	return ""
+}
+
 // ClearAll truncates all data tables so the next sync fetches everything fresh
 func (d *DB) ClearAll() error {
 	_, err := d.db.Exec(`

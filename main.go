@@ -25,6 +25,9 @@ type Config struct {
 	Password string `json:"password"`
 	Port     int    `json:"port"`
 	DBPath   string `json:"db_path"`
+	// SyncFrom is the earliest date for full-history syncs (YYYY-MM-DD).
+	// Defaults to 2 years ago when empty.
+	SyncFrom string `json:"sync_from"`
 }
 
 func loadConfig() Config {
@@ -110,6 +113,11 @@ func main() {
 		}
 	}
 
+	// Auto-sync any days missed since the last sync (runs in background)
+	if client.LoggedIn {
+		go autoSync(client, db)
+	}
+
 	mux := http.NewServeMux()
 
 	// Serve static files from web/ directory
@@ -138,33 +146,32 @@ func main() {
 		}
 
 		resp := garmin.DashboardResponse{
-			Metrics:  metrics,
-			LastSync: db.LastSync(),
+			Metrics:       metrics,
+			LastSync:      db.LastSync(),
+			EarliestInDB:  db.EarliestSyncedDate(),
+			LatestInDB:    db.LatestSyncedDate(),
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	})
 
-	// POST /api/sync?months=3  →  starts a background sync
+	// POST /api/sync?months=3  →  syncs the given number of months back from today
 	mux.HandleFunc("/api/sync", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "POST required", 405)
 			return
 		}
-
+		if !client.LoggedIn {
+			http.Error(w, "Not logged in — please log in first", 401)
+			return
+		}
 		syncState.mu.Lock()
 		running := syncState.Running
 		syncState.mu.Unlock()
-
 		if running {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(syncState.snapshot())
-			return
-		}
-
-		if !client.LoggedIn {
-			http.Error(w, "Not logged in — please log in first", 401)
 			return
 		}
 
@@ -174,11 +181,40 @@ func main() {
 				months = v
 			}
 		}
-
-		go runSync(client, db, months)
+		startStr := time.Now().AddDate(0, -months, 0).Format("2006-01-02")
+		endStr := time.Now().Format("2006-01-02")
+		go runSync(client, db, startStr, endStr, "Sync")
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]string{"status": "started"})
+	})
+
+	// POST /api/sync/all  →  full historical sync from sync_from config date
+	mux.HandleFunc("/api/sync/all", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "POST required", 405)
+			return
+		}
+		if !client.LoggedIn {
+			http.Error(w, "Not logged in — please log in first", 401)
+			return
+		}
+		syncState.mu.Lock()
+		running := syncState.Running
+		syncState.mu.Unlock()
+		if running {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(syncState.snapshot())
+			return
+		}
+
+		startStr := syncFromDate(cfg.SyncFrom)
+		endStr := time.Now().Format("2006-01-02")
+		log.Printf("Full-history sync from %s", startStr)
+		go runSync(client, db, startStr, endStr, "Full sync")
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "started", "from": startStr})
 	})
 
 	// GET /api/sync/status  →  returns current sync progress
@@ -310,21 +346,41 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr, mux))
 }
 
-// runSync fetches all missing data from Garmin for the given month range
-func runSync(client *garmin.Client, db *storage.DB, months int) {
-	syncState.set(true, 0, 0, "Starting sync...", "")
+// autoSync runs at startup and fills in any days missing since the last sync.
+// It is a no-op when the DB is already up to date.
+func autoSync(client *garmin.Client, db *storage.DB) {
+	today := time.Now().Format("2006-01-02")
+	latest := db.LatestSyncedDate()
 
-	now := time.Now()
-	endDate := now
-	startDate := now.AddDate(0, -months, 0)
-	startStr := startDate.Format("2006-01-02")
-	endStr := endDate.Format("2006-01-02")
+	var startStr string
+	if latest == "" {
+		// No data yet — default to 3 months
+		startStr = time.Now().AddDate(0, -3, 0).Format("2006-01-02")
+	} else if latest >= today {
+		log.Println("Auto-sync: already up to date")
+		return
+	} else {
+		// Start from the day after the last cached date
+		t, _ := time.Parse("2006-01-02", latest)
+		startStr = t.AddDate(0, 0, 1).Format("2006-01-02")
+	}
 
+	days := int(time.Since(mustParseDate(startStr)).Hours()/24) + 1
+	log.Printf("Auto-sync: %d day(s) missing (%s → %s)", days, startStr, today)
+	runSync(client, db, startStr, today, "Auto-sync")
+}
+
+// runSync fetches all missing data between startStr and endStr (YYYY-MM-DD).
+// Already-cached days are skipped. label is shown in sync status messages.
+func runSync(client *garmin.Client, db *storage.DB, startStr, endStr, label string) {
+	syncState.set(true, 0, 0, label+": starting…", "")
+
+	startDate, _ := time.Parse("2006-01-02", startStr)
+	endDate, _ := time.Parse("2006-01-02", endStr)
 	totalDays := int(endDate.Sub(startDate).Hours()/24) + 1
 
-	// ── Phase 1: VO2Max range call (one request for the full range) ───────
-	syncState.set(true, 0, totalDays, "Fetching VO2Max...", "")
-	log.Printf("Fetching VO2Max %s → %s", startStr, endStr)
+	// ── Phase 1: VO2Max — one range call covers everything ────────────────
+	syncState.set(true, 0, totalDays, label+": fetching VO2Max…", "")
 	vo2map, err := client.FetchVO2MaxRange(startStr, endStr)
 	if err != nil {
 		log.Printf("VO2Max fetch error: %v", err)
@@ -332,21 +388,16 @@ func runSync(client *garmin.Client, db *storage.DB, months int) {
 		if err := db.SaveVO2MaxMap(vo2map); err != nil {
 			log.Printf("VO2Max save error: %v", err)
 		}
-		log.Printf("VO2Max: saved %d days", len(vo2map))
-	} else {
-		log.Printf("VO2Max: no data returned (device may not support VO2Max estimation)")
+		log.Printf("VO2Max: %d data points saved", len(vo2map))
 	}
 
-	// ── Phase 2: Per-day HRV + training status (cached) ──────────────────
-	log.Printf("Fetching per-day data for %d days", totalDays)
-
+	// ── Phase 2: HRV + training status, one day at a time (cached) ───────
 	hrvFetched, tsFetched := 0, 0
 	for i := 0; i < totalDays; i++ {
 		date := startDate.AddDate(0, 0, i).Format("2006-01-02")
 		syncState.set(true, i+1, totalDays,
-			fmt.Sprintf("Day %d/%d: %s", i+1, totalDays, date), "")
+			fmt.Sprintf("%s: day %d/%d (%s)", label, i+1, totalDays, date), "")
 
-		// HRV
 		if !db.HasHRV(date) {
 			hrv, err := client.FetchHRV(date)
 			if err != nil {
@@ -360,7 +411,6 @@ func runSync(client *garmin.Client, db *storage.DB, months int) {
 			time.Sleep(150 * time.Millisecond)
 		}
 
-		// Training status (ATL/CTL/TSB) — also returns a VO2Max point as a bonus
 		if !db.HasTrainingStatus(date) {
 			ts, vo2pt, err := client.FetchTrainingStatusDay(date)
 			if err != nil {
@@ -373,15 +423,32 @@ func runSync(client *garmin.Client, db *storage.DB, months int) {
 					tsFetched++
 				}
 				if vo2pt != nil {
-					if err := db.SaveVO2MaxMap(map[string]float64{vo2pt.Date: vo2pt.Value}); err != nil {
-						log.Printf("VO2Max (from ts) save %s: %v", vo2pt.Date, err)
-					}
+					_ = db.SaveVO2MaxMap(map[string]float64{vo2pt.Date: vo2pt.Value})
 				}
 			}
 			time.Sleep(150 * time.Millisecond)
 		}
 	}
 
-	log.Printf("Sync done — HRV: %d new, TrainingStatus: %d new", hrvFetched, tsFetched)
-	syncState.set(false, totalDays, totalDays, "Sync complete!", "")
+	log.Printf("%s done — HRV: %d new, TrainingStatus: %d new", label, hrvFetched, tsFetched)
+	syncState.set(false, totalDays, totalDays, label+": complete!", "")
+}
+
+// syncFromDate returns the configured sync-from date, or 2 years ago as default.
+func syncFromDate(configured string) string {
+	if configured != "" {
+		if _, err := time.Parse("2006-01-02", configured); err == nil {
+			return configured
+		}
+	}
+	return time.Now().AddDate(-2, 0, 0).Format("2006-01-02")
+}
+
+// mustParseDate parses a YYYY-MM-DD date and panics on failure (used only at startup).
+func mustParseDate(s string) time.Time {
+	t, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		panic(fmt.Sprintf("invalid date %q: %v", s, err))
+	}
+	return t
 }

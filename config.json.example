@@ -1,6 +1,7 @@
 {
-  "email":    "your@email.com",
-  "password": "yourpassword",
-  "port":     8080,
-  "db_path":  "garmin.db"
+  "email":     "your@email.com",
+  "password":  "yourpassword",
+  "port":      8080,
+  "db_path":   "garmin.db",
+  "sync_from": "2023-01-01"
 }
