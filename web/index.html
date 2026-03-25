@@ -85,12 +85,34 @@
         <div class="kpi-sub">ml/kg/min</div>
       </div>
       <div class="kpi-card" id="kpi-form">
-        <div class="kpi-label">Form (TSB)</div>
+        <div class="kpi-label">Form (TSB)
+          <span class="info-icon" tabindex="0">i
+            <div class="tooltip-card tooltip-card--up">
+              <div class="tt-head tt-tsb">⚡ TSB — Training Stress Balance</div>
+              <div class="tt-desc">Your freshness indicator. How rested you are relative to your fitness.</div>
+              <div class="tt-formula">TSB = CTL − ATL</div>
+              <ul class="tt-zones">
+                <li><span class="dot dot-green"></span><strong>&gt; +5</strong> — Fresh, ready to race or test</li>
+                <li><span class="dot dot-amber"></span><strong>−10 to +5</strong> — Optimal training zone</li>
+                <li><span class="dot dot-red"></span><strong>&lt; −20</strong> — High fatigue, risk of overreaching</li>
+              </ul>
+            </div>
+          </span>
+        </div>
         <div class="kpi-value" id="kpi-form-val">—</div>
         <div class="kpi-sub" id="kpi-form-sub">—</div>
       </div>
       <div class="kpi-card" id="kpi-ctl">
-        <div class="kpi-label">Fitness (CTL)</div>
+        <div class="kpi-label">Fitness (CTL)
+          <span class="info-icon" tabindex="0">i
+            <div class="tooltip-card tooltip-card--up">
+              <div class="tt-head tt-ctl">📈 CTL — Chronic Training Load</div>
+              <div class="tt-desc">Your long-term fitness base, built over ~42 days of consistent training.</div>
+              <div class="tt-formula">CTL<sub>today</sub> = CTL<sub>prev</sub> + (load − CTL<sub>prev</sub>) ÷ 42</div>
+              <div class="tt-note">Higher CTL = more fitness. Builds slowly, takes weeks of consistency.</div>
+            </div>
+          </span>
+        </div>
         <div class="kpi-value" id="kpi-ctl-val">—</div>
         <div class="kpi-sub">chronic load</div>
       </div>
@@ -109,7 +131,53 @@
     <section class="chart-section">
       <div class="chart-header">
         <h2 class="chart-title">Performance Management</h2>
-        <p class="chart-desc">Fitness (CTL) vs Fatigue (ATL) vs Form (TSB) — positive TSB means you're fresh, negative means tired</p>
+        <p class="chart-desc">Fitness vs Fatigue vs Form — positive TSB = fresh, negative = tired</p>
+        <div class="metric-defs">
+
+          <div class="metric-pill metric-pill--atl">
+            <span class="mp-dot"></span>
+            <span class="mp-name">ATL — Fatigue</span>
+            <span class="info-icon" tabindex="0">i
+              <div class="tooltip-card tooltip-card--down">
+                <div class="tt-head tt-atl">🔥 ATL — Acute Training Load</div>
+                <div class="tt-desc">Short-term training stress from the past ~7 days. Spikes quickly after hard sessions.</div>
+                <div class="tt-formula">ATL<sub>today</sub> = ATL<sub>prev</sub> + (load − ATL<sub>prev</sub>) ÷ 7</div>
+                <div class="tt-note">High ATL = high recent fatigue. Drops fast with rest.</div>
+              </div>
+            </span>
+          </div>
+
+          <div class="metric-pill metric-pill--ctl">
+            <span class="mp-dot"></span>
+            <span class="mp-name">CTL — Fitness</span>
+            <span class="info-icon" tabindex="0">i
+              <div class="tooltip-card tooltip-card--down">
+                <div class="tt-head tt-ctl">📈 CTL — Chronic Training Load</div>
+                <div class="tt-desc">Long-term fitness base built over ~42 days of consistent training.</div>
+                <div class="tt-formula">CTL<sub>today</sub> = CTL<sub>prev</sub> + (load − CTL<sub>prev</sub>) ÷ 42</div>
+                <div class="tt-note">Rises slowly with sustained training. Takes weeks to build.</div>
+              </div>
+            </span>
+          </div>
+
+          <div class="metric-pill metric-pill--tsb">
+            <span class="mp-dot"></span>
+            <span class="mp-name">TSB — Form</span>
+            <span class="info-icon" tabindex="0">i
+              <div class="tooltip-card tooltip-card--down">
+                <div class="tt-head tt-tsb">⚡ TSB — Training Stress Balance</div>
+                <div class="tt-desc">How fresh you are right now. Positive = rested, negative = fatigued.</div>
+                <div class="tt-formula">TSB = CTL − ATL</div>
+                <ul class="tt-zones">
+                  <li><span class="dot dot-green"></span><strong>&gt; +5</strong> — Fresh / peak form</li>
+                  <li><span class="dot dot-amber"></span><strong>−10 to +5</strong> — Productive training</li>
+                  <li><span class="dot dot-red"></span><strong>&lt; −20</strong> — Overreaching risk</li>
+                </ul>
+              </div>
+            </span>
+          </div>
+
+        </div>
       </div>
       <div id="chart-pmc" class="chart-container"></div>
     </section>

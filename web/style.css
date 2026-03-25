@@ -385,6 +385,140 @@ body {
 }
 .error-msg.hidden { display: none; }
 
+/* ── Info Icons & Tooltips ───────────────────────────────────────────── */
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 9px;
+  font-style: italic;
+  font-weight: 700;
+  cursor: help;
+  position: relative;
+  vertical-align: middle;
+  margin-left: 5px;
+  flex-shrink: 0;
+  transition: border-color .15s, color .15s;
+  user-select: none;
+}
+.info-icon:hover, .info-icon:focus { color: var(--blue); border-color: var(--blue); outline: none; }
+
+.tooltip-card {
+  display: none;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 260px;
+  background: #0e1a2e;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  z-index: 9999;
+  text-align: left;
+  pointer-events: none;
+  font-style: normal;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: normal;
+}
+/* Arrow pointing up (tooltip below element) */
+.tooltip-card--down { top: calc(100% + 8px); }
+.tooltip-card--down::before {
+  content: '';
+  position: absolute;
+  top: -5px; left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top: 0;
+  border-bottom-color: var(--border);
+}
+/* Arrow pointing down (tooltip above element) */
+.tooltip-card--up { bottom: calc(100% + 8px); }
+.tooltip-card--up::before {
+  content: '';
+  position: absolute;
+  bottom: -5px; left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-bottom: 0;
+  border-top-color: var(--border);
+}
+.info-icon:hover .tooltip-card,
+.info-icon:focus .tooltip-card { display: block; }
+
+.tt-head {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.tt-atl  { color: #f59e0b; }
+.tt-ctl  { color: #3b82f6; }
+.tt-tsb  { color: #a78bfa; }
+
+.tt-desc  { color: #94a3b8; margin-bottom: 8px; }
+.tt-formula {
+  font-family: 'Menlo', 'Consolas', monospace;
+  font-size: 11px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 5px 8px;
+  margin-bottom: 8px;
+  color: #e2e8f0;
+}
+.tt-note  { font-size: 11px; color: var(--muted); }
+.tt-zones { list-style: none; margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.tt-zones li { font-size: 11px; color: #94a3b8; display: flex; align-items: center; gap: 6px; }
+.dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-green { background: #10b981; }
+.dot-amber { background: #f59e0b; }
+.dot-red   { background: #ef4444; }
+
+/* ── Metric Definition Pills (PMC chart) ─────────────────────────────── */
+.metric-defs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.metric-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid;
+}
+.metric-pill--atl { background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.3); color: #fbbf24; }
+.metric-pill--ctl { background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.3); color: #60a5fa; }
+.metric-pill--tsb { background: rgba(167,139,250,0.08); border-color: rgba(167,139,250,0.3); color: #a78bfa; }
+.mp-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.metric-pill--atl .mp-dot { background: #f59e0b; }
+.metric-pill--ctl .mp-dot { background: #3b82f6; }
+.metric-pill--tsb .mp-dot { background: #a78bfa; }
+.mp-name { white-space: nowrap; }
+
 /* ── Utility ─────────────────────────────────────────────────────────── */
 .hidden { display: none !important; }
 
