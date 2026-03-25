@@ -203,6 +203,68 @@ func (c *Client) FetchVO2MaxRange(startDate, endDate string) (map[string]float64
 	return result, nil
 }
 
+// FetchActivitiesRange fetches all activities between startDate and endDate (YYYY-MM-DD).
+// Endpoint: /activitylist-service/activities/search/activities
+// Results are paginated at 100 per page.
+func (c *Client) FetchActivitiesRange(startDate, endDate string) ([]Activity, error) {
+	var all []Activity
+	const pageSize = 100
+
+	for offset := 0; ; offset += pageSize {
+		path := fmt.Sprintf(
+			"/activitylist-service/activities/search/activities?startDate=%s&endDate=%s&start=%d&limit=%d",
+			startDate, endDate, offset, pageSize,
+		)
+		body, err := c.get(path)
+		if err != nil {
+			return nil, fmt.Errorf("activities fetch: %w", err)
+		}
+		if body == nil {
+			break
+		}
+
+		var items []struct {
+			ActivityID     json.Number `json:"activityId"`
+			ActivityName   string      `json:"activityName"`
+			StartTimeLocal string      `json:"startTimeLocal"`
+			ActivityType   struct {
+				TypeKey string `json:"typeKey"`
+			} `json:"activityType"`
+			Distance  float64 `json:"distance"`
+			Duration  float64 `json:"duration"`
+			AverageHR float64 `json:"averageHR"`
+			Calories  float64 `json:"calories"`
+		}
+		if err := json.Unmarshal(body, &items); err != nil {
+			return nil, fmt.Errorf("activities parse: %w — body: %s", err, truncate(string(body), 200))
+		}
+
+		for _, item := range items {
+			date := ""
+			if len(item.StartTimeLocal) >= 10 {
+				date = item.StartTimeLocal[:10]
+			}
+			all = append(all, Activity{
+				ActivityID:   item.ActivityID.String(),
+				Date:         date,
+				ActivityType: item.ActivityType.TypeKey,
+				DistanceM:    item.Distance,
+				DurationS:    item.Duration,
+				AvgHR:        int(item.AverageHR),
+				Calories:     int(item.Calories),
+				Name:         item.ActivityName,
+			})
+		}
+
+		if len(items) < pageSize {
+			break // last page
+		}
+	}
+
+	log.Printf("activities: fetched %d total in %s → %s", len(all), startDate, endDate)
+	return all, nil
+}
+
 // RawGet is a pass-through for the debug endpoint — returns raw JSON body
 func (c *Client) RawGet(path string) ([]byte, error) {
 	return c.get(path)

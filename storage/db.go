@@ -52,6 +52,19 @@ func migrate(db *sql.DB) error {
 			vo2max    REAL,
 			synced_at TEXT
 		);
+
+		CREATE TABLE IF NOT EXISTS activities (
+			activity_id   TEXT PRIMARY KEY,
+			date          TEXT,
+			activity_type TEXT,
+			distance_m    REAL,
+			duration_s    REAL,
+			avg_hr        INTEGER,
+			calories      INTEGER,
+			name          TEXT,
+			synced_at     TEXT
+		);
+		CREATE INDEX IF NOT EXISTS activities_date ON activities(date);
 	`)
 	return err
 }
@@ -96,6 +109,23 @@ func (d *DB) SaveTrainingStatus(t *garmin.TrainingStatusEntry) error {
 	return err
 }
 
+// ── Activities ────────────────────────────────────────────────────────────
+
+func (d *DB) SaveActivities(acts []garmin.Activity) error {
+	for _, a := range acts {
+		if _, err := d.db.Exec(
+			`INSERT OR REPLACE INTO activities
+			 (activity_id, date, activity_type, distance_m, duration_s, avg_hr, calories, name, synced_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			a.ActivityID, a.Date, a.ActivityType, a.DistanceM, a.DurationS,
+			a.AvgHR, a.Calories, a.Name, time.Now().Format(time.RFC3339),
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ── VO2Max ────────────────────────────────────────────────────────────────
 
 func (d *DB) SaveVO2MaxMap(m map[string]float64) error {
@@ -112,7 +142,7 @@ func (d *DB) SaveVO2MaxMap(m map[string]float64) error {
 
 // ── Query ─────────────────────────────────────────────────────────────────
 
-// GetMetrics returns all cached metrics merged across the three tables
+// GetMetrics returns all cached metrics merged across all tables
 func (d *DB) GetMetrics(startDate, endDate string) ([]garmin.DailyMetrics, error) {
 	rows, err := d.db.Query(`
 		WITH dates AS (
@@ -121,6 +151,18 @@ func (d *DB) GetMetrics(startDate, endDate string) ([]garmin.DailyMetrics, error
 			SELECT date FROM training_status WHERE date >= ? AND date <= ?
 			UNION
 			SELECT date FROM vo2max_data     WHERE date >= ? AND date <= ?
+			UNION
+			SELECT date FROM activities      WHERE date >= ? AND date <= ?
+		),
+		run_km AS (
+			SELECT date, SUM(distance_m) / 1000.0 AS km_run
+			FROM activities
+			WHERE date >= ? AND date <= ?
+			  AND activity_type IN (
+			      'running','trail_running','treadmill_running',
+			      'track_running','ultra_run','virtual_run','obstacle_run'
+			  )
+			GROUP BY date
 		)
 		SELECT
 			d.date,
@@ -130,13 +172,19 @@ func (d *DB) GetMetrics(startDate, endDate string) ([]garmin.DailyMetrics, error
 			t.ctl,
 			t.tsb,
 			v.vo2max,
-			t.status_phrase
+			t.status_phrase,
+			r.km_run
 		FROM dates d
 		LEFT JOIN hrv_data        h ON h.date = d.date
 		LEFT JOIN training_status t ON t.date = d.date
 		LEFT JOIN vo2max_data     v ON v.date = d.date
+		LEFT JOIN run_km          r ON r.date = d.date
 		ORDER BY d.date ASC
-	`, startDate, endDate, startDate, endDate, startDate, endDate)
+	`, startDate, endDate,
+		startDate, endDate,
+		startDate, endDate,
+		startDate, endDate,
+		startDate, endDate)
 	if err != nil {
 		return nil, fmt.Errorf("query: %w", err)
 	}
@@ -150,9 +198,9 @@ func scanMetrics(rows *sql.Rows) ([]garmin.DailyMetrics, error) {
 		var m garmin.DailyMetrics
 		var lastNight sql.NullInt64
 		var hrvStatus, statusPhrase sql.NullString
-		var atl, ctl, tsb, vo2max sql.NullFloat64
+		var atl, ctl, tsb, vo2max, kmRun sql.NullFloat64
 
-		if err := rows.Scan(&m.Date, &lastNight, &hrvStatus, &atl, &ctl, &tsb, &vo2max, &statusPhrase); err != nil {
+		if err := rows.Scan(&m.Date, &lastNight, &hrvStatus, &atl, &ctl, &tsb, &vo2max, &statusPhrase, &kmRun); err != nil {
 			return nil, err
 		}
 		if lastNight.Valid {
@@ -176,6 +224,9 @@ func scanMetrics(rows *sql.Rows) ([]garmin.DailyMetrics, error) {
 		}
 		if statusPhrase.Valid {
 			m.Status = statusPhrase.String
+		}
+		if kmRun.Valid && kmRun.Float64 > 0 {
+			m.KmRun = &kmRun.Float64
 		}
 		out = append(out, m)
 	}
@@ -220,6 +271,7 @@ func (d *DB) ClearAll() error {
 		DELETE FROM hrv_data;
 		DELETE FROM training_status;
 		DELETE FROM vo2max_data;
+		DELETE FROM activities;
 	`)
 	return err
 }
@@ -227,7 +279,7 @@ func (d *DB) ClearAll() error {
 // Stats returns diagnostic row counts and date ranges for each table
 func (d *DB) Stats() map[string]interface{} {
 	stats := map[string]interface{}{}
-	for _, tbl := range []string{"hrv_data", "training_status", "vo2max_data"} {
+	for _, tbl := range []string{"hrv_data", "training_status", "vo2max_data", "activities"} {
 		var count int
 		var minDate, maxDate sql.NullString
 		d.db.QueryRow(`SELECT COUNT(*), MIN(date), MAX(date) FROM `+tbl).Scan(&count, &minDate, &maxDate)

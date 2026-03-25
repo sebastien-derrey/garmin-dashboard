@@ -42,6 +42,19 @@ type DailyMetrics struct {
 	TSB       *float64 `json:"tsb"`    // Training Stress Balance (form)
 	VO2Max    *float64 `json:"vo2max"` // VO2Max estimate
 	Status    string   `json:"status"` // Training status phrase
+	KmRun     *float64 `json:"kmRun"`  // Total km run that day
+}
+
+// Activity represents a single Garmin activity (run, ride, etc.)
+type Activity struct {
+	ActivityID   string  // Garmin activity ID
+	Date         string  // YYYY-MM-DD local date
+	ActivityType string  // e.g. "running", "trail_running"
+	DistanceM    float64 // meters
+	DurationS    float64 // seconds
+	AvgHR        int
+	Calories     int
+	Name         string
 }
 
 // VO2MaxPoint is a single VO2Max data point with its date

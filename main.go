@@ -388,7 +388,7 @@ func runSync(client *garmin.Client, db *storage.DB, startStr, endStr, label stri
 	endDate, _ := time.Parse("2006-01-02", endStr)
 	totalDays := int(endDate.Sub(startDate).Hours()/24) + 1
 
-	// ── Phase 1: VO2Max — one range call covers everything ────────────────
+	// ── Phase 1: Range calls (VO2Max + Activities) ────────────────────────
 	syncState.set(true, 0, totalDays, label+": fetching VO2Max…", "")
 	vo2map, err := client.FetchVO2MaxRange(startStr, endStr)
 	if err != nil {
@@ -398,6 +398,17 @@ func runSync(client *garmin.Client, db *storage.DB, startStr, endStr, label stri
 			log.Printf("VO2Max save error: %v", err)
 		}
 		log.Printf("VO2Max: %d data points saved", len(vo2map))
+	}
+
+	syncState.set(true, 0, totalDays, label+": fetching activities…", "")
+	acts, err := client.FetchActivitiesRange(startStr, endStr)
+	if err != nil {
+		log.Printf("Activities fetch error: %v", err)
+	} else if len(acts) > 0 {
+		if err := db.SaveActivities(acts); err != nil {
+			log.Printf("Activities save error: %v", err)
+		}
+		log.Printf("Activities: %d saved", len(acts))
 	}
 
 	// ── Phase 2: HRV + training status, one day at a time (cached) ───────

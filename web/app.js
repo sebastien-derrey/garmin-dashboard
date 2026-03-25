@@ -188,6 +188,7 @@ async function loadData() {
     drawPMC(allMetrics);
     drawHRVvsATL(allMetrics);
     drawHRVvsVO2(allMetrics);
+    drawRunningChart(allMetrics);
     drawVO2Trend(allMetrics);
   } catch (e) {
     console.error('Failed to load data:', e);
@@ -531,6 +532,70 @@ function drawHRVvsVO2(metrics) {
   };
 
   Plotly.newPlot('chart-hrv-vo2', traces, layout, PLOTLY_CONFIG);
+}
+
+// ── Chart: Running Distance ───────────────────────────────────────────────
+function drawRunningChart(metrics) {
+  const runDays = metrics.filter(m => m.kmRun != null && m.kmRun > 0);
+  const el = document.getElementById('chart-running');
+
+  if (!runDays.length) {
+    el.innerHTML = '<p style="color:#64748b;padding:20px;text-align:center">No running data in this range — sync to fetch activity history</p>';
+    return;
+  }
+
+  // Build a full date→km map for rolling totals (include zeros)
+  const kmByDate = {};
+  metrics.forEach(m => { kmByDate[m.date] = m.kmRun ?? 0; });
+  const allDates = metrics.map(m => m.date);
+  const allKm    = allDates.map(d => kmByDate[d]);
+
+  // Rolling totals using a sliding window sum (not average)
+  function rollingSum(arr, win) {
+    return arr.map((_, i) => {
+      const slice = arr.slice(Math.max(0, i - win + 1), i + 1);
+      return slice.reduce((a, b) => a + b, 0);
+    });
+  }
+
+  const km7d  = rollingSum(allKm, 7);
+  const km30d = rollingSum(allKm, 30);
+
+  const barDates = runDays.map(m => m.date);
+  const barKm    = runDays.map(m => m.kmRun);
+
+  const traces = [
+    {
+      x: barDates, y: barKm,
+      type: 'bar', name: 'Daily km',
+      marker: { color: 'rgba(16,185,129,0.55)' },
+      hovertemplate: '%{x}<br>Run: %{y:.2f} km<extra></extra>',
+    },
+    {
+      x: allDates, y: km7d,
+      type: 'scatter', mode: 'lines', name: '7-day total',
+      line: { color: '#10b981', width: 2 },
+      hovertemplate: '7d total: %{y:.1f} km<extra></extra>',
+    },
+    {
+      x: allDates, y: km30d,
+      type: 'scatter', mode: 'lines', name: '30-day total',
+      line: { color: '#3b82f6', width: 2, dash: 'dot' },
+      yaxis: 'y2',
+      hovertemplate: '30d total: %{y:.1f} km<extra></extra>',
+    },
+  ];
+
+  const layout = {
+    ...DARK,
+    barmode: 'overlay',
+    yaxis:  { ...DARK.yaxis,  title: { text: 'km / 7-day total' } },
+    yaxis2: { ...DARK.yaxis2, title: { text: '30-day total (km)' }, overlaying: 'y', side: 'right', showgrid: false },
+    legend: { ...DARK.legend, orientation: 'h', y: -0.12 },
+    hovermode: 'x unified',
+  };
+
+  Plotly.newPlot('chart-running', traces, layout, PLOTLY_CONFIG);
 }
 
 // ── Chart 5: VO2Max Trend ────────────────────────────────────────────────
