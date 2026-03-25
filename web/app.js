@@ -544,53 +544,57 @@ function drawRunningChart(metrics) {
     return;
   }
 
-  // Build a full date→km map for rolling totals (include zeros)
-  const kmByDate = {};
-  metrics.forEach(m => { kmByDate[m.date] = m.kmRun ?? 0; });
   const allDates = metrics.map(m => m.date);
-  const allKm    = allDates.map(d => kmByDate[d]);
+  const allKm    = metrics.map(m => m.kmRun ?? 0);
 
-  // Rolling totals using a sliding window sum (not average)
-  function rollingSum(arr, win) {
-    return arr.map((_, i) => {
-      const slice = arr.slice(Math.max(0, i - win + 1), i + 1);
-      return slice.reduce((a, b) => a + b, 0);
-    });
-  }
+  // 7-day rolling average over run days only (skip rest days)
+  const km7dAvg = allKm.map((_, i) => {
+    const slice = allKm.slice(Math.max(0, i - 6), i + 1).filter(v => v > 0);
+    return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : null;
+  });
 
-  const km7d  = rollingSum(allKm, 7);
-  const km30d = rollingSum(allKm, 30);
+  // Period average km per run (horizontal reference line)
+  const totalKm = runDays.reduce((a, m) => a + m.kmRun, 0);
+  const avgKm   = totalKm / runDays.length;
 
-  const barDates = runDays.map(m => m.date);
-  const barKm    = runDays.map(m => m.kmRun);
+  // VO2Max line
+  const vo2Dates = metrics.filter(m => m.vo2max != null).map(m => m.date);
+  const vo2Vals  = metrics.filter(m => m.vo2max != null).map(m => m.vo2max);
 
   const traces = [
     {
-      x: barDates, y: barKm,
+      x: runDays.map(m => m.date), y: runDays.map(m => m.kmRun),
       type: 'bar', name: 'Daily km',
-      marker: { color: 'rgba(16,185,129,0.55)' },
+      marker: { color: 'rgba(16,185,129,0.45)' },
       hovertemplate: '%{x}<br>Run: %{y:.2f} km<extra></extra>',
     },
     {
-      x: allDates, y: km7d,
-      type: 'scatter', mode: 'lines', name: '7-day total',
+      x: allDates, y: km7dAvg,
+      type: 'scatter', mode: 'lines', name: '7-day avg km',
       line: { color: '#10b981', width: 2 },
-      hovertemplate: '7d total: %{y:.1f} km<extra></extra>',
+      hovertemplate: '7d avg: %{y:.2f} km<extra></extra>',
     },
     {
-      x: allDates, y: km30d,
-      type: 'scatter', mode: 'lines', name: '30-day total',
-      line: { color: '#3b82f6', width: 2, dash: 'dot' },
+      x: [allDates[0], allDates[allDates.length - 1]],
+      y: [avgKm, avgKm],
+      type: 'scatter', mode: 'lines', name: `Period avg: ${avgKm.toFixed(1)} km`,
+      line: { color: 'rgba(16,185,129,0.7)', dash: 'dash', width: 1.5 },
+      hoverinfo: 'skip',
+    },
+    {
+      x: vo2Dates, y: vo2Vals,
+      type: 'scatter', mode: 'lines', name: 'VO₂Max',
+      line: { color: C.vo2, width: 2 },
       yaxis: 'y2',
-      hovertemplate: '30d total: %{y:.1f} km<extra></extra>',
+      hovertemplate: 'VO₂Max: %{y:.1f}<extra></extra>',
     },
   ];
 
   const layout = {
     ...DARK,
     barmode: 'overlay',
-    yaxis:  { ...DARK.yaxis,  title: { text: 'km / 7-day total' } },
-    yaxis2: { ...DARK.yaxis2, title: { text: '30-day total (km)' }, overlaying: 'y', side: 'right', showgrid: false },
+    yaxis:  { ...DARK.yaxis,  title: { text: 'km per run' } },
+    yaxis2: { ...DARK.yaxis2, title: { text: 'VO₂Max (ml/kg/min)' }, overlaying: 'y', side: 'right', showgrid: false },
     legend: { ...DARK.legend, orientation: 'h', y: -0.12 },
     hovermode: 'x unified',
   };
