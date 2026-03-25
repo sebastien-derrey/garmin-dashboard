@@ -16,9 +16,12 @@ const PLOTLY_CONFIG = { responsive: true, displayModeBar: true, modeBarButtonsTo
 const C = { hrv: '#10b981', atl: '#f59e0b', ctl: '#3b82f6', tsb: '#e2e8f0', vo2: '#8b5cf6', zone: 'rgba(239,68,68,0.08)' };
 
 // ── State ────────────────────────────────────────────────────────────────
-let currentMonths = 3;
-let syncInterval  = null;
-let allMetrics    = [];
+// Year-window: always 12 months, navigable back/forward
+let windowEnd   = new Date();
+let windowStart = (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 1); return d; })();
+let earliestInDB = null;   // populated from /api/data response
+let syncInterval = null;
+let allMetrics   = [];
 
 // ── Init ─────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -98,22 +101,62 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// ── Data Loading ─────────────────────────────────────────────────────────
-function onMonthChange() {
-  currentMonths = parseInt(document.getElementById('month-select').value);
+// ── Helpers ───────────────────────────────────────────────────────────────
+function fmtDate(d) {
+  return d.toISOString().split('T')[0];
+}
+function fmtLabel(d) {
+  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+// ── Year Navigator ────────────────────────────────────────────────────────
+function prevYear() {
+  windowEnd   = new Date(windowEnd);   windowEnd.setFullYear(windowEnd.getFullYear() - 1);
+  windowStart = new Date(windowStart); windowStart.setFullYear(windowStart.getFullYear() - 1);
   loadData();
 }
 
+function nextYear() {
+  const today = new Date();
+  windowStart = new Date(windowStart); windowStart.setFullYear(windowStart.getFullYear() + 1);
+  windowEnd   = new Date(windowEnd);   windowEnd.setFullYear(windowEnd.getFullYear() + 1);
+  // Cap at today — keep 12-month window
+  if (windowEnd > today) {
+    windowEnd   = today;
+    windowStart = new Date(today); windowStart.setFullYear(windowStart.getFullYear() - 1);
+  }
+  loadData();
+}
+
+function updateYearNav() {
+  document.getElementById('year-range-label').textContent =
+    `${fmtLabel(windowStart)}  –  ${fmtLabel(windowEnd)}`;
+
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  // Disable next when the window already ends at (or past) today
+  document.getElementById('next-year-btn').disabled =
+    fmtDate(windowEnd) >= fmtDate(today);
+
+  // Disable prev when going further back would pass the earliest data in DB
+  const prevStart = new Date(windowStart); prevStart.setFullYear(prevStart.getFullYear() - 1);
+  document.getElementById('prev-year-btn').disabled =
+    !earliestInDB || fmtDate(prevStart) < earliestInDB;
+}
+
+// ── Data Loading ─────────────────────────────────────────────────────────
 async function loadData() {
   try {
     const [dataRes, statsRes] = await Promise.all([
-      fetch(`/api/data?months=${currentMonths}`),
+      fetch(`/api/data?start=${fmtDate(windowStart)}&end=${fmtDate(windowEnd)}`),
       fetch('/api/stats'),
     ]);
     const body  = await dataRes.json();
     const stats = statsRes.ok ? await statsRes.json() : null;
-    allMetrics  = body.metrics || [];
+    allMetrics   = body.metrics || [];
+    earliestInDB = body.earliestInDB || null;
     updateDBRangeBadge(body.earliestInDB, body.latestInDB);
+    updateYearNav();
 
     if (allMetrics.length === 0) {
       document.getElementById('empty-state').classList.remove('hidden');
@@ -186,7 +229,7 @@ function setSyncButtonsDisabled(disabled) {
 
 async function startSync() {
   setSyncButtonsDisabled(true);
-  const res = await fetch(`/api/sync?months=${currentMonths}`, { method: 'POST' });
+  const res = await fetch(`/api/sync?start=${fmtDate(windowStart)}&end=${fmtDate(windowEnd)}`, { method: 'POST' });
   if (!res.ok) {
     alert(await res.text());
     setSyncButtonsDisabled(false);

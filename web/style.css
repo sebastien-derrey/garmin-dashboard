@@ -70,25 +70,47 @@ body {
 }
 .user-badge.hidden { display: none; }
 
-.month-control {
+/* ── Year Navigator ──────────────────────────────────────────────────── */
+.year-nav {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 13px;
-}
-.month-control select {
+  gap: 2px;
   background: var(--surface2);
   border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 5px 10px;
-  font-size: 13px;
-  cursor: pointer;
-  outline: none;
+  border-radius: 8px;
+  padding: 2px;
 }
-.month-control select:focus {
-  border-color: var(--blue);
+.year-nav-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 22px;
+  line-height: 1;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.year-nav-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--border);
+}
+.year-nav-btn:disabled {
+  color: var(--border);
+  cursor: default;
+}
+.year-range-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  min-width: 168px;
+  text-align: center;
+  padding: 0 4px;
+  user-select: none;
 }
 
 .btn-sync {

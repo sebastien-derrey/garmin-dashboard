@@ -31,15 +31,10 @@
         <span id="user-badge" class="user-badge hidden"></span>
       </div>
       <div class="header-right">
-        <div class="month-control">
-          <label>Range</label>
-          <select id="month-select" onchange="onMonthChange()">
-            <option value="1">1 month</option>
-            <option value="2">2 months</option>
-            <option value="3" selected>3 months</option>
-            <option value="6">6 months</option>
-            <option value="12">12 months</option>
-          </select>
+        <div class="year-nav">
+          <button id="prev-year-btn" class="year-nav-btn" onclick="prevYear()" title="Previous year" disabled>&#8249;</button>
+          <span id="year-range-label" class="year-range-label">—</span>
+          <button id="next-year-btn" class="year-nav-btn" onclick="nextYear()" title="Next year" disabled>&#8250;</button>
         </div>
         <button id="sync-btn" class="btn-sync" onclick="startSync()" title="Sync recent data for the selected range">
           <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

@@ -126,18 +126,23 @@ func main() {
 
 	// ── API routes ──────────────────────────────────────────────────────────
 
-	// GET /api/data?months=3  →  returns cached metrics as JSON
+	// GET /api/data?start=YYYY-MM-DD&end=YYYY-MM-DD  →  returns cached metrics as JSON
+	// Falls back to ?months=N (default 12) for backward compatibility.
 	mux.HandleFunc("/api/data", func(w http.ResponseWriter, r *http.Request) {
-		months := 3
-		if m := r.URL.Query().Get("months"); m != "" {
-			if v, err := strconv.Atoi(m); err == nil && v >= 1 && v <= 12 {
-				months = v
-			}
-		}
+		startDate := r.URL.Query().Get("start")
+		endDate := r.URL.Query().Get("end")
 
-		now := time.Now()
-		endDate := now.Format("2006-01-02")
-		startDate := now.AddDate(0, -months, 0).Format("2006-01-02")
+		if startDate == "" || endDate == "" {
+			months := 12
+			if m := r.URL.Query().Get("months"); m != "" {
+				if v, err := strconv.Atoi(m); err == nil && v >= 1 {
+					months = v
+				}
+			}
+			now := time.Now()
+			endDate = now.Format("2006-01-02")
+			startDate = now.AddDate(0, -months, 0).Format("2006-01-02")
+		}
 
 		metrics, err := db.GetMetrics(startDate, endDate)
 		if err != nil {
@@ -175,14 +180,18 @@ func main() {
 			return
 		}
 
-		months := 3
-		if m := r.URL.Query().Get("months"); m != "" {
-			if v, err := strconv.Atoi(m); err == nil && v >= 1 && v <= 12 {
-				months = v
+		startStr := r.URL.Query().Get("start")
+		endStr := r.URL.Query().Get("end")
+		if startStr == "" || endStr == "" {
+			months := 12
+			if m := r.URL.Query().Get("months"); m != "" {
+				if v, err := strconv.Atoi(m); err == nil && v >= 1 {
+					months = v
+				}
 			}
+			endStr = time.Now().Format("2006-01-02")
+			startStr = time.Now().AddDate(0, -months, 0).Format("2006-01-02")
 		}
-		startStr := time.Now().AddDate(0, -months, 0).Format("2006-01-02")
-		endStr := time.Now().Format("2006-01-02")
 		go runSync(client, db, startStr, endStr, "Sync")
 
 		w.Header().Set("Content-Type", "application/json")
