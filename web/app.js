@@ -547,15 +547,14 @@ function drawRunningChart(metrics) {
   const allDates = metrics.map(m => m.date);
   const allKm    = metrics.map(m => m.kmRun ?? 0);
 
-  // 7-day rolling average over run days only (skip rest days)
-  const km7dAvg = allKm.map((_, i) => {
-    const slice = allKm.slice(Math.max(0, i - 6), i + 1).filter(v => v > 0);
-    return slice.length ? slice.reduce((a, b) => a + b, 0) / slice.length : null;
+  // 7-day rolling total distance
+  const km7dTotal = allKm.map((_, i) => {
+    const slice = allKm.slice(Math.max(0, i - 6), i + 1);
+    return slice.reduce((a, b) => a + b, 0);
   });
 
-  // Period average km per run (horizontal reference line)
-  const totalKm = runDays.reduce((a, m) => a + m.kmRun, 0);
-  const avgKm   = totalKm / runDays.length;
+  // Average of the 7-day rolling totals (horizontal reference line)
+  const avg7dKm = km7dTotal.reduce((a, b) => a + b, 0) / km7dTotal.length;
 
   // VO2Max line
   const vo2Dates = metrics.filter(m => m.vo2max != null).map(m => m.date);
@@ -569,15 +568,15 @@ function drawRunningChart(metrics) {
       hovertemplate: '%{x}<br>Run: %{y:.2f} km<extra></extra>',
     },
     {
-      x: allDates, y: km7dAvg,
-      type: 'scatter', mode: 'lines', name: '7-day avg km',
+      x: allDates, y: km7dTotal,
+      type: 'scatter', mode: 'lines', name: '7-day total km',
       line: { color: '#10b981', width: 2 },
-      hovertemplate: '7d avg: %{y:.2f} km<extra></extra>',
+      hovertemplate: '7d total: %{y:.1f} km<extra></extra>',
     },
     {
       x: [allDates[0], allDates[allDates.length - 1]],
-      y: [avgKm, avgKm],
-      type: 'scatter', mode: 'lines', name: `Period avg: ${avgKm.toFixed(1)} km`,
+      y: [avg7dKm, avg7dKm],
+      type: 'scatter', mode: 'lines', name: `Avg 7d total: ${avg7dKm.toFixed(1)} km`,
       line: { color: 'rgba(16,185,129,0.7)', dash: 'dash', width: 1.5 },
       hoverinfo: 'skip',
     },
@@ -593,7 +592,7 @@ function drawRunningChart(metrics) {
   const layout = {
     ...DARK,
     barmode: 'overlay',
-    yaxis:  { ...DARK.yaxis,  title: { text: 'km per run' } },
+    yaxis:  { ...DARK.yaxis,  title: { text: 'km / 7-day total' } },
     yaxis2: { ...DARK.yaxis2, title: { text: 'VO₂Max (ml/kg/min)' }, overlaying: 'y', side: 'right', showgrid: false },
     legend: { ...DARK.legend, orientation: 'h', y: -0.12 },
     hovermode: 'x unified',
