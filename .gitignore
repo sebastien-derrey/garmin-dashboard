@@ -1,0 +1,22 @@
+# Credentials & secrets — never commit these
+config.json
+garmin_tokens.json
+
+# Local database (personal health data)
+*.db
+*.db-shm
+*.db-wal
+
+# Compiled binary
+garmin_dashboard
+garmin_dashboard.exe
+
+# Go build cache
+vendor/
+
+# IDE / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
