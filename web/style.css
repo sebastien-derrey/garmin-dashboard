@@ -70,8 +70,35 @@ body {
 }
 .user-badge.hidden { display: none; }
 
-/* ── Year Navigator ──────────────────────────────────────────────────── */
-.year-nav {
+/* ── Period selector (1M / 3M / 1Y) ─────────────────────────────────── */
+.period-selector {
+  display: flex;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+.period-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  letter-spacing: 0.03em;
+}
+.period-btn:hover { color: var(--text); }
+.period-btn.active {
+  background: var(--blue);
+  color: #fff;
+}
+
+/* ── Range navigator  ‹  Mar 2025 – Mar 2026  › ─────────────────────── */
+.range-nav {
   display: flex;
   align-items: center;
   gap: 2px;
@@ -80,7 +107,7 @@ body {
   border-radius: 8px;
   padding: 2px;
 }
-.year-nav-btn {
+.range-nav-btn {
   background: none;
   border: none;
   color: var(--muted);
@@ -95,19 +122,13 @@ body {
   cursor: pointer;
   transition: color 0.15s, background 0.15s;
 }
-.year-nav-btn:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--border);
-}
-.year-nav-btn:disabled {
-  color: var(--border);
-  cursor: default;
-}
-.year-range-label {
+.range-nav-btn:hover:not(:disabled) { color: var(--text); background: var(--border); }
+.range-nav-btn:disabled              { color: var(--border); cursor: default; }
+.range-label {
   font-size: 13px;
   font-weight: 500;
   color: var(--text);
-  min-width: 168px;
+  min-width: 148px;
   text-align: center;
   padding: 0 4px;
   user-select: none;

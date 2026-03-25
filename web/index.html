@@ -31,10 +31,17 @@
         <span id="user-badge" class="user-badge hidden"></span>
       </div>
       <div class="header-right">
-        <div class="year-nav">
-          <button id="prev-year-btn" class="year-nav-btn" onclick="prevYear()" title="Previous year" disabled>&#8249;</button>
-          <span id="year-range-label" class="year-range-label">—</span>
-          <button id="next-year-btn" class="year-nav-btn" onclick="nextYear()" title="Next year" disabled>&#8250;</button>
+        <!-- Period toggle: 1M / 3M / 1Y -->
+        <div class="period-selector">
+          <button class="period-btn" data-period="1month" onclick="setPeriod('1month')">1M</button>
+          <button class="period-btn active" data-period="3month" onclick="setPeriod('3month')">3M</button>
+          <button class="period-btn" data-period="year" onclick="setPeriod('year')">1Y</button>
+        </div>
+        <!-- Range navigator -->
+        <div class="range-nav">
+          <button id="prev-btn" class="range-nav-btn" onclick="prevPeriod()" title="Previous period" disabled>&#8249;</button>
+          <span id="range-label" class="range-label">—</span>
+          <button id="next-btn" class="range-nav-btn" onclick="nextPeriod()" title="Next period" disabled>&#8250;</button>
         </div>
         <button id="sync-btn" class="btn-sync" onclick="startSync()" title="Sync recent data for the selected range">
           <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

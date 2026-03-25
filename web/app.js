@@ -16,10 +16,10 @@ const PLOTLY_CONFIG = { responsive: true, displayModeBar: true, modeBarButtonsTo
 const C = { hrv: '#10b981', atl: '#f59e0b', ctl: '#3b82f6', tsb: '#e2e8f0', vo2: '#8b5cf6', zone: 'rgba(239,68,68,0.08)' };
 
 // ── State ────────────────────────────────────────────────────────────────
-// Year-window: always 12 months, navigable back/forward
-let windowEnd   = new Date();
-let windowStart = (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 1); return d; })();
-let earliestInDB = null;   // populated from /api/data response
+let period       = '3month';   // '1month' | '3month' | 'year'
+let windowEnd    = new Date();
+let windowStart  = shiftDate(windowEnd, period, -1);
+let earliestInDB = null;       // oldest date present in DB
 let syncInterval = null;
 let allMetrics   = [];
 
@@ -105,43 +105,61 @@ document.addEventListener('keydown', e => {
 function fmtDate(d) {
   return d.toISOString().split('T')[0];
 }
-function fmtLabel(d) {
-  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+
+// Shift a date forward (+1) or backward (-1) by the current period
+function shiftDate(d, p, dir) {
+  const r = new Date(d);
+  if (p === 'year')   r.setFullYear(r.getFullYear() + dir);
+  if (p === '3month') r.setMonth(r.getMonth() + dir * 3);
+  if (p === '1month') r.setMonth(r.getMonth() + dir * 1);
+  return r;
 }
 
-// ── Year Navigator ────────────────────────────────────────────────────────
-function prevYear() {
-  windowEnd   = new Date(windowEnd);   windowEnd.setFullYear(windowEnd.getFullYear() - 1);
-  windowStart = new Date(windowStart); windowStart.setFullYear(windowStart.getFullYear() - 1);
+function periodLabel() {
+  const mo = (d) => d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  if (period === '1month') return mo(windowStart);
+  return `${mo(windowStart)}  –  ${mo(windowEnd)}`;
+}
+
+// ── Period selector ───────────────────────────────────────────────────────
+function setPeriod(p) {
+  period      = p;
+  windowStart = shiftDate(windowEnd, p, -1);
+  document.querySelectorAll('.period-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.period === p));
   loadData();
 }
 
-function nextYear() {
-  const today = new Date();
-  windowStart = new Date(windowStart); windowStart.setFullYear(windowStart.getFullYear() + 1);
-  windowEnd   = new Date(windowEnd);   windowEnd.setFullYear(windowEnd.getFullYear() + 1);
-  // Cap at today — keep 12-month window
+// ── Navigation ────────────────────────────────────────────────────────────
+function prevPeriod() {
+  windowEnd   = new Date(windowStart);
+  windowStart = shiftDate(windowEnd, period, -1);
+  loadData();
+}
+
+function nextPeriod() {
+  const today = new Date(); today.setHours(23, 59, 59, 0);
+  windowStart = new Date(windowEnd);
+  windowEnd   = shiftDate(windowStart, period, +1);
   if (windowEnd > today) {
-    windowEnd   = today;
-    windowStart = new Date(today); windowStart.setFullYear(windowStart.getFullYear() - 1);
+    windowEnd   = new Date();
+    windowStart = shiftDate(windowEnd, period, -1);
   }
   loadData();
 }
 
-function updateYearNav() {
-  document.getElementById('year-range-label').textContent =
-    `${fmtLabel(windowStart)}  –  ${fmtLabel(windowEnd)}`;
+function updateNav() {
+  document.getElementById('range-label').textContent = periodLabel();
 
-  const today = new Date(); today.setHours(0,0,0,0);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
 
-  // Disable next when the window already ends at (or past) today
-  document.getElementById('next-year-btn').disabled =
+  // ‹ disabled when there is no data before the current window start
+  document.getElementById('prev-btn').disabled =
+    !earliestInDB || fmtDate(windowStart) <= earliestInDB;
+
+  // › disabled when the window already ends at today (or beyond)
+  document.getElementById('next-btn').disabled =
     fmtDate(windowEnd) >= fmtDate(today);
-
-  // Disable prev when going further back would pass the earliest data in DB
-  const prevStart = new Date(windowStart); prevStart.setFullYear(prevStart.getFullYear() - 1);
-  document.getElementById('prev-year-btn').disabled =
-    !earliestInDB || fmtDate(prevStart) < earliestInDB;
 }
 
 // ── Data Loading ─────────────────────────────────────────────────────────
@@ -156,7 +174,7 @@ async function loadData() {
     allMetrics   = body.metrics || [];
     earliestInDB = body.earliestInDB || null;
     updateDBRangeBadge(body.earliestInDB, body.latestInDB);
-    updateYearNav();
+    updateNav();
 
     if (allMetrics.length === 0) {
       document.getElementById('empty-state').classList.remove('hidden');
