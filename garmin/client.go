@@ -266,12 +266,23 @@ func (c *Client) FetchActivitiesRange(startDate, endDate string) ([]Activity, er
 }
 
 // FetchWellnessDay fetches sleep score, body battery, stress, and resting HR for one day.
-// Makes two API calls: daily summary (stress/HR/battery) + sleep data (sleep score).
+//
+// Endpoints (both require the user's displayName GUID in the path):
+//   - /usersummary-service/usersummary/daily/{displayName}?calendarDate={date}
+//     → restingHeartRate, averageStressLevel, bodyBatteryHighestValue
+//   - /wellness-service/wellness/dailySleepData/{displayName}?date={date}
+//     → dailySleepDTO.sleepScores.overall.value
 func (c *Client) FetchWellnessDay(date string) (*WellnessDay, error) {
 	wd := &WellnessDay{CalendarDate: date}
+	dn := c.displayName
+	if dn == "" {
+		log.Printf("FetchWellnessDay: displayName not set, skipping wellness for %s", date)
+		return wd, nil
+	}
 
-	// ── Wellness summary: stress, resting HR, body battery ────────────────
-	if body, err := c.get("/wellness-service/wellness/dailySummary/" + date); err == nil && body != nil {
+	// ── Daily summary: resting HR, stress, body battery ──────────────────
+	summaryPath := fmt.Sprintf("/usersummary-service/usersummary/daily/%s?calendarDate=%s", dn, date)
+	if body, err := c.get(summaryPath); err == nil && body != nil {
 		var raw struct {
 			RestingHeartRate        *int `json:"restingHeartRate"`
 			AverageStressLevel      *int `json:"averageStressLevel"`
@@ -285,7 +296,8 @@ func (c *Client) FetchWellnessDay(date string) (*WellnessDay, error) {
 	}
 
 	// ── Sleep score ───────────────────────────────────────────────────────
-	if body, err := c.get("/wellness-service/wellness/dailySleepData/" + date); err == nil && body != nil {
+	sleepPath := fmt.Sprintf("/wellness-service/wellness/dailySleepData/%s?date=%s", dn, date)
+	if body, err := c.get(sleepPath); err == nil && body != nil {
 		var raw struct {
 			DailySleepDTO *struct {
 				SleepScores *struct {

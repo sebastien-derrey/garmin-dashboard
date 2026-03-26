@@ -308,8 +308,8 @@ func main() {
 				"/metrics-service/metrics/trainingstatus/aggregated/" + today,
 				"/metrics-service/metrics/maxmet/daily/" + yesterday + "/" + today,
 				"/hrv-service/hrv/" + today,
-				"/wellness-service/wellness/dailySummary/" + today,
-				"/wellness-service/wellness/dailySleepData/" + today,
+				"/usersummary-service/usersummary/daily/" + client.DisplayName() + "?calendarDate=" + today,
+				"/wellness-service/wellness/dailySleepData/" + client.DisplayName() + "?date=" + yesterday,
 			}
 			results := map[string]interface{}{}
 			for _, p := range paths {
