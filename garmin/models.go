@@ -43,6 +43,10 @@ type DailyMetrics struct {
 	VO2Max    *float64 `json:"vo2max"` // VO2Max estimate
 	Status    string   `json:"status"` // Training status phrase
 	KmRun     *float64 `json:"kmRun"`  // Total km run that day
+	SleepScore  *float64 `json:"sleepScore"`  // Overall sleep quality 0-100
+	BodyBattery *float64 `json:"bodyBattery"` // Highest body battery of the day
+	AvgStress   *float64 `json:"avgStress"`   // Average stress level
+	RestingHR   *float64 `json:"restingHr"`   // Resting heart rate bpm
 }
 
 // Activity represents a single Garmin activity (run, ride, etc.)
@@ -61,6 +65,15 @@ type Activity struct {
 type VO2MaxPoint struct {
 	Date  string
 	Value float64
+}
+
+// WellnessDay holds daily wellness metrics fetched from Garmin wellness endpoints
+type WellnessDay struct {
+	CalendarDate string
+	SleepScore   *int // overall sleep score 0–100
+	BodyBattery  *int // highest body battery value of the day
+	AvgStress    *int // average stress level 0–100
+	RestingHR    *int // resting heart rate in bpm
 }
 
 // DashboardResponse is the full response to the frontend

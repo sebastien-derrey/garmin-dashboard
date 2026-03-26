@@ -265,6 +265,47 @@ func (c *Client) FetchActivitiesRange(startDate, endDate string) ([]Activity, er
 	return all, nil
 }
 
+// FetchWellnessDay fetches sleep score, body battery, stress, and resting HR for one day.
+// Makes two API calls: daily summary (stress/HR/battery) + sleep data (sleep score).
+func (c *Client) FetchWellnessDay(date string) (*WellnessDay, error) {
+	wd := &WellnessDay{CalendarDate: date}
+
+	// ── Wellness summary: stress, resting HR, body battery ────────────────
+	if body, err := c.get("/wellness-service/wellness/dailySummary/" + date); err == nil && body != nil {
+		var raw struct {
+			RestingHeartRate        *int `json:"restingHeartRate"`
+			AverageStressLevel      *int `json:"averageStressLevel"`
+			BodyBatteryHighestValue *int `json:"bodyBatteryHighestValue"`
+		}
+		if json.Unmarshal(body, &raw) == nil {
+			wd.RestingHR   = raw.RestingHeartRate
+			wd.AvgStress   = raw.AverageStressLevel
+			wd.BodyBattery = raw.BodyBatteryHighestValue
+		}
+	}
+
+	// ── Sleep score ───────────────────────────────────────────────────────
+	if body, err := c.get("/wellness-service/wellness/dailySleepData/" + date); err == nil && body != nil {
+		var raw struct {
+			DailySleepDTO *struct {
+				SleepScores *struct {
+					Overall *struct {
+						Value *int `json:"value"`
+					} `json:"overall"`
+				} `json:"sleepScores"`
+			} `json:"dailySleepDTO"`
+		}
+		if json.Unmarshal(body, &raw) == nil &&
+			raw.DailySleepDTO != nil &&
+			raw.DailySleepDTO.SleepScores != nil &&
+			raw.DailySleepDTO.SleepScores.Overall != nil {
+			wd.SleepScore = raw.DailySleepDTO.SleepScores.Overall.Value
+		}
+	}
+
+	return wd, nil
+}
+
 // RawGet is a pass-through for the debug endpoint — returns raw JSON body
 func (c *Client) RawGet(path string) ([]byte, error) {
 	return c.get(path)

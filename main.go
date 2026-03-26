@@ -308,6 +308,8 @@ func main() {
 				"/metrics-service/metrics/trainingstatus/aggregated/" + today,
 				"/metrics-service/metrics/maxmet/daily/" + yesterday + "/" + today,
 				"/hrv-service/hrv/" + today,
+				"/wellness-service/wellness/dailySummary/" + today,
+				"/wellness-service/wellness/dailySleepData/" + today,
 			}
 			results := map[string]interface{}{}
 			for _, p := range paths {
@@ -444,6 +446,18 @@ func runSync(client *garmin.Client, db *storage.DB, startStr, endStr, label stri
 				}
 				if vo2pt != nil {
 					_ = db.SaveVO2MaxMap(map[string]float64{vo2pt.Date: vo2pt.Value})
+				}
+			}
+			time.Sleep(150 * time.Millisecond)
+		}
+
+		if !db.HasWellness(date) {
+			wellness, err := client.FetchWellnessDay(date)
+			if err != nil {
+				log.Printf("Wellness %s: %v", date, err)
+			} else if wellness != nil {
+				if err := db.SaveWellness(wellness); err != nil {
+					log.Printf("Wellness save %s: %v", date, err)
 				}
 			}
 			time.Sleep(150 * time.Millisecond)

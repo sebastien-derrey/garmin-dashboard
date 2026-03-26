@@ -189,6 +189,7 @@ async function loadData() {
     drawHRVvsATL(allMetrics);
     drawHRVvsVO2(allMetrics);
     drawRunningChart(allMetrics);
+    drawWellnessChart(allMetrics);
     drawVO2Trend(allMetrics);
   } catch (e) {
     console.error('Failed to load data:', e);
@@ -415,6 +416,14 @@ function drawPMC(metrics) {
 
   const traces = [
     {
+      x: metrics.filter(m => m.kmRun != null).map(m => m.date),
+      y: metrics.filter(m => m.kmRun != null).map(m => m.kmRun),
+      type: 'bar', name: 'Run (km)',
+      marker: { color: 'rgba(16,185,129,0.35)' },
+      yaxis: 'y3',
+      hovertemplate: 'Run: %{y:.1f} km<extra></extra>',
+    },
+    {
       x: dates, y: ctl, name: 'CTL (Fitness)', type: 'scatter', mode: 'lines',
       line: { color: C.ctl, width: 2.5 },
       hovertemplate: 'Fitness (CTL): %{y:.1f}<extra></extra>',
@@ -445,6 +454,11 @@ function drawPMC(metrics) {
     ...DARK,
     yaxis:  { ...DARK.yaxis,  title: { text: 'Load', standoff: 8 } },
     yaxis2: { ...DARK.yaxis2, title: { text: 'Form (TSB)', standoff: 8 }, overlaying: 'y', side: 'right' },
+    yaxis3: {
+      overlaying: 'y', side: 'right', anchor: 'free', position: 1,
+      showgrid: false, showticklabels: false,
+      title: { text: '' },
+    },
     legend: { ...DARK.legend, orientation: 'h', y: -0.12 },
     hovermode: 'x unified',
   };
@@ -599,6 +613,96 @@ function drawRunningChart(metrics) {
   };
 
   Plotly.newPlot('chart-running', traces, layout, PLOTLY_CONFIG);
+}
+
+// ── Chart: Wellness Overview ──────────────────────────────────────────────
+function drawWellnessChart(metrics) {
+  const el = document.getElementById('chart-wellness');
+
+  // Check if we have any wellness data
+  const hasSleep   = metrics.some(m => m.sleepScore  != null);
+  const hasBattery = metrics.some(m => m.bodyBattery != null);
+  const hasStress  = metrics.some(m => m.avgStress   != null);
+  const hasHR      = metrics.some(m => m.restingHr   != null);
+  const hasHRV     = metrics.some(m => m.hrv         != null);
+
+  if (!hasSleep && !hasBattery && !hasStress && !hasHR) {
+    el.innerHTML = '<p style="color:#64748b;padding:20px;text-align:center">No wellness data yet — run a sync to fetch sleep, body battery, and stress data</p>';
+    return;
+  }
+
+  const dates = metrics.map(m => m.date);
+
+  const traces = [];
+
+  // HRV (y2 — bpm scale)
+  if (hasHRV) {
+    traces.push({
+      x: metrics.filter(m => m.hrv != null).map(m => m.date),
+      y: metrics.filter(m => m.hrv != null).map(m => m.hrv),
+      type: 'scatter', mode: 'lines', name: 'HRV (ms)',
+      line: { color: C.hrv, width: 2 },
+      yaxis: 'y2',
+      hovertemplate: 'HRV: %{y:.0f} ms<extra></extra>',
+    });
+  }
+
+  // Resting HR (y2 — bpm scale)
+  if (hasHR) {
+    traces.push({
+      x: metrics.filter(m => m.restingHr != null).map(m => m.date),
+      y: metrics.filter(m => m.restingHr != null).map(m => m.restingHr),
+      type: 'scatter', mode: 'lines', name: 'Resting HR',
+      line: { color: '#ef4444', width: 2 },
+      yaxis: 'y2',
+      hovertemplate: 'Resting HR: %{y:.0f} bpm<extra></extra>',
+    });
+  }
+
+  // Stress bars (y — 0-100)
+  if (hasStress) {
+    traces.push({
+      x: metrics.filter(m => m.avgStress != null).map(m => m.date),
+      y: metrics.filter(m => m.avgStress != null).map(m => m.avgStress),
+      type: 'bar', name: 'Avg Stress',
+      marker: { color: 'rgba(245,158,11,0.4)' },
+      hovertemplate: 'Stress: %{y:.0f}<extra></extra>',
+    });
+  }
+
+  // Body battery line (y — 0-100)
+  if (hasBattery) {
+    traces.push({
+      x: metrics.filter(m => m.bodyBattery != null).map(m => m.date),
+      y: metrics.filter(m => m.bodyBattery != null).map(m => m.bodyBattery),
+      type: 'scatter', mode: 'lines', name: 'Body Battery',
+      line: { color: '#06b6d4', width: 2 },
+      hovertemplate: 'Battery: %{y:.0f}<extra></extra>',
+    });
+  }
+
+  // Sleep score line (y — 0-100)
+  if (hasSleep) {
+    traces.push({
+      x: metrics.filter(m => m.sleepScore != null).map(m => m.date),
+      y: metrics.filter(m => m.sleepScore != null).map(m => m.sleepScore),
+      type: 'scatter', mode: 'lines+markers', name: 'Sleep Score',
+      line: { color: '#8b5cf6', width: 2 },
+      marker: { size: 4, color: '#8b5cf6' },
+      hovertemplate: 'Sleep: %{y:.0f}/100<extra></extra>',
+    });
+  }
+
+  const layout = {
+    ...DARK,
+    barmode: 'overlay',
+    yaxis:  { ...DARK.yaxis,  title: { text: 'Score (0–100)' }, range: [0, 110] },
+    yaxis2: { ...DARK.yaxis2, title: { text: 'HR / HRV (bpm / ms)' }, overlaying: 'y', side: 'right', showgrid: false },
+    legend: { ...DARK.legend, orientation: 'h', y: -0.12 },
+    hovermode: 'x unified',
+  };
+
+  Plotly.newPlot('chart-wellness', traces, layout, PLOTLY_CONFIG);
 }
 
 // ── Chart 5: VO2Max Trend ────────────────────────────────────────────────

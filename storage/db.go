@@ -65,6 +65,16 @@ func migrate(db *sql.DB) error {
 			synced_at     TEXT
 		);
 		CREATE INDEX IF NOT EXISTS activities_date ON activities(date);
+
+		CREATE TABLE IF NOT EXISTS wellness_data (
+		    date         TEXT PRIMARY KEY,
+		    sleep_score  INTEGER,
+		    body_battery INTEGER,
+		    avg_stress   INTEGER,
+		    resting_hr   INTEGER,
+		    synced_at    TEXT
+		);
+		CREATE INDEX IF NOT EXISTS wellness_date ON wellness_data(date);
 	`)
 	return err
 }
@@ -126,6 +136,34 @@ func (d *DB) SaveActivities(acts []garmin.Activity) error {
 	return nil
 }
 
+// ── Wellness ──────────────────────────────────────────────────────────────
+
+func (d *DB) HasWellness(date string) bool {
+	var n int
+	d.db.QueryRow("SELECT COUNT(*) FROM wellness_data WHERE date = ?", date).Scan(&n)
+	return n > 0
+}
+
+func (d *DB) SaveWellness(w *garmin.WellnessDay) error {
+	toNull := func(v *int) interface{} {
+		if v == nil {
+			return nil
+		}
+		return *v
+	}
+	_, err := d.db.Exec(
+		`INSERT OR REPLACE INTO wellness_data (date, sleep_score, body_battery, avg_stress, resting_hr, synced_at)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		w.CalendarDate,
+		toNull(w.SleepScore),
+		toNull(w.BodyBattery),
+		toNull(w.AvgStress),
+		toNull(w.RestingHR),
+		time.Now().Format(time.RFC3339),
+	)
+	return err
+}
+
 // ── VO2Max ────────────────────────────────────────────────────────────────
 
 func (d *DB) SaveVO2MaxMap(m map[string]float64) error {
@@ -153,6 +191,8 @@ func (d *DB) GetMetrics(startDate, endDate string) ([]garmin.DailyMetrics, error
 			SELECT date FROM vo2max_data     WHERE date >= ? AND date <= ?
 			UNION
 			SELECT date FROM activities      WHERE date >= ? AND date <= ?
+			UNION
+			SELECT date FROM wellness_data   WHERE date >= ? AND date <= ?
 		),
 		run_km AS (
 			SELECT date, SUM(distance_m) / 1000.0 AS km_run
@@ -173,14 +213,20 @@ func (d *DB) GetMetrics(startDate, endDate string) ([]garmin.DailyMetrics, error
 			t.tsb,
 			v.vo2max,
 			t.status_phrase,
-			r.km_run
+			r.km_run,
+			w.sleep_score,
+			w.body_battery,
+			w.avg_stress,
+			w.resting_hr
 		FROM dates d
 		LEFT JOIN hrv_data        h ON h.date = d.date
 		LEFT JOIN training_status t ON t.date = d.date
 		LEFT JOIN vo2max_data     v ON v.date = d.date
 		LEFT JOIN run_km          r ON r.date = d.date
+		LEFT JOIN wellness_data   w ON w.date = d.date
 		ORDER BY d.date ASC
 	`, startDate, endDate,
+		startDate, endDate,
 		startDate, endDate,
 		startDate, endDate,
 		startDate, endDate,
@@ -199,35 +245,29 @@ func scanMetrics(rows *sql.Rows) ([]garmin.DailyMetrics, error) {
 		var lastNight sql.NullInt64
 		var hrvStatus, statusPhrase sql.NullString
 		var atl, ctl, tsb, vo2max, kmRun sql.NullFloat64
+		var sleepScore, bodyBattery, avgStress, restingHR sql.NullFloat64
 
-		if err := rows.Scan(&m.Date, &lastNight, &hrvStatus, &atl, &ctl, &tsb, &vo2max, &statusPhrase, &kmRun); err != nil {
+		if err := rows.Scan(
+			&m.Date, &lastNight, &hrvStatus, &atl, &ctl, &tsb, &vo2max, &statusPhrase, &kmRun,
+			&sleepScore, &bodyBattery, &avgStress, &restingHR,
+		); err != nil {
 			return nil, err
 		}
 		if lastNight.Valid {
 			v := float64(lastNight.Int64)
 			m.HRV = &v
 		}
-		if hrvStatus.Valid {
-			m.HRVStatus = hrvStatus.String
-		}
-		if atl.Valid {
-			m.ATL = &atl.Float64
-		}
-		if ctl.Valid {
-			m.CTL = &ctl.Float64
-		}
-		if tsb.Valid {
-			m.TSB = &tsb.Float64
-		}
-		if vo2max.Valid && vo2max.Float64 > 0 {
-			m.VO2Max = &vo2max.Float64
-		}
-		if statusPhrase.Valid {
-			m.Status = statusPhrase.String
-		}
-		if kmRun.Valid && kmRun.Float64 > 0 {
-			m.KmRun = &kmRun.Float64
-		}
+		if hrvStatus.Valid    { m.HRVStatus = hrvStatus.String }
+		if atl.Valid          { m.ATL = &atl.Float64 }
+		if ctl.Valid          { m.CTL = &ctl.Float64 }
+		if tsb.Valid          { m.TSB = &tsb.Float64 }
+		if vo2max.Valid && vo2max.Float64 > 0 { m.VO2Max = &vo2max.Float64 }
+		if statusPhrase.Valid { m.Status = statusPhrase.String }
+		if kmRun.Valid && kmRun.Float64 > 0 { m.KmRun = &kmRun.Float64 }
+		if sleepScore.Valid && sleepScore.Float64 > 0  { m.SleepScore  = &sleepScore.Float64 }
+		if bodyBattery.Valid && bodyBattery.Float64 > 0 { m.BodyBattery = &bodyBattery.Float64 }
+		if avgStress.Valid && avgStress.Float64 > 0    { m.AvgStress   = &avgStress.Float64 }
+		if restingHR.Valid && restingHR.Float64 > 0    { m.RestingHR   = &restingHR.Float64 }
 		out = append(out, m)
 	}
 	return out, rows.Err()
@@ -272,6 +312,7 @@ func (d *DB) ClearAll() error {
 		DELETE FROM training_status;
 		DELETE FROM vo2max_data;
 		DELETE FROM activities;
+		DELETE FROM wellness_data;
 	`)
 	return err
 }
@@ -279,7 +320,7 @@ func (d *DB) ClearAll() error {
 // Stats returns diagnostic row counts and date ranges for each table
 func (d *DB) Stats() map[string]interface{} {
 	stats := map[string]interface{}{}
-	for _, tbl := range []string{"hrv_data", "training_status", "vo2max_data", "activities"} {
+	for _, tbl := range []string{"hrv_data", "training_status", "vo2max_data", "activities", "wellness_data"} {
 		var count int
 		var minDate, maxDate sql.NullString
 		d.db.QueryRow(`SELECT COUNT(*), MIN(date), MAX(date) FROM `+tbl).Scan(&count, &minDate, &maxDate)
