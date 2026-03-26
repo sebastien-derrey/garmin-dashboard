@@ -76,6 +76,18 @@ func migrate(db *sql.DB) error {
 		);
 		CREATE INDEX IF NOT EXISTS wellness_date ON wellness_data(date);
 	`)
+	if err != nil {
+		return err
+	}
+	// Purge wellness rows that were saved with all-null values (written during a broken sync).
+	// Safe to run every startup — only removes rows that have no useful data.
+	_, err = db.Exec(`
+		DELETE FROM wellness_data
+		WHERE sleep_score IS NULL
+		  AND body_battery IS NULL
+		  AND avg_stress   IS NULL
+		  AND resting_hr   IS NULL
+	`)
 	return err
 }
 
